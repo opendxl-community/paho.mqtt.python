@@ -2989,26 +2989,6 @@ class Client(object):
                 "proxy_password": socks_default[5]
             })
 
-        # Finally, look at environment variables ending in _proxy as long as the
-        # host we're trying to connect to isn't listed under the no_proxy
-        # environment variable (matches built-in module urllib's behavior)
-        if not urllib_dot_request.proxy_bypass(self._host):
-            env_proxies = urllib_dot_request.getproxies()
-            for proxy in env_proxies.values():
-                parts = urllib_dot_parse.urlparse(proxy)
-                if parts.scheme == "http":
-                    proxies.append({
-                        "proxy_type": socks.HTTP,
-                        "proxy_addr": parts.hostname,
-                        "proxy_port": parts.port
-                    })
-                elif parts.scheme == "socks":
-                    proxies.append({
-                        "proxy_type": socks.SOCKS5,
-                        "proxy_addr": parts.hostname,
-                        "proxy_port": parts.port
-                    })
-
         return proxies
 
     def _create_socket_connection(self):
