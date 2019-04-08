@@ -987,10 +987,6 @@ class Client(object):
 
         try:
             sock = self._create_socket_connection()
-            if sys.version_info < (2, 7) or (3, 0) < sys.version_info < (3, 2):
-                sock = socket.create_connection((self._host, self._port))
-            else:
-                sock = socket.create_connection((self._host, self._port), source_address=(self._bind_address, 0))
         except socket.error as err:
             if err.errno != errno.EINPROGRESS and err.errno != errno.EWOULDBLOCK and err.errno != EAGAIN:
                 raise
@@ -2964,7 +2960,7 @@ class Client(object):
             time.sleep(min(remaining, 1))
             remaining = target_time - time_func()
 
-    def _get_proxies(self):
+    def _get_proxy(self):
         def proxy_is_valid(p):
             if isinstance(p, dict):
                 return bool(p.get("proxy_type"))
@@ -2973,57 +2969,22 @@ class Client(object):
             else:
                 return False
 
-        proxies = []  # proxy servers to use in order of preference
-
         if proxy_is_valid(self._proxy):
-            proxies.append(self._proxy)
-
-        socks_default = socks.get_default_proxy()
-        if proxy_is_valid(socks_default):
-            proxies.append({
-                "proxy_type": socks_default[0],
-                "proxy_addr": socks_default[1],
-                "proxy_port": socks_default[2],
-                "proxy_rdns": socks_default[3],
-                "proxy_username": socks_default[4],
-                "proxy_password": socks_default[5]
-            })
-
-        return proxies
+            return self._proxy
+        return None
 
     def _create_socket_connection(self):
-        proxies = self._get_proxies()
+        proxy = self._get_proxy()
         addr = (self._host, self._port)
         source = (self._bind_address, 0)
 
-        if ((sys.version_info[0] == 2 and sys.version_info[1] < 7)
-                or (sys.version_info[0] == 3 and sys.version_info[1] < 2)):
-            if len(proxies) > 0:
-                # Since the built-in socket library doesn't support the
-                # source_address param in earlier Python versions, we won't
-                # support it with the PySocks library either for consistency,
-                # even though the library technically *can* handle it.
-                source = None
-            else:
-                # Have to short-circuit here because of unsupported
-                # source_address param in earlier Python versions.
-                return socket.create_connection(addr)
+        if sys.version_info < (2, 7) or (3, 0) < sys.version_info < (3, 2):
+            # Have to short-circuit here because of unsupported source_address
+            # param in earlier Python versions.
+            return socket.create_connection(addr)
 
-        if len(proxies) > 0:
-            error = None
-            for proxy in proxies:
-                try:
-                    sock = socks.create_connection(addr, source_address=source,
-                                                   **proxy)
-                    error = None  # explicitly break ref cycle
-                    return sock
-                except socks.ProxyError as e:
-                    # Try the next proxy if this one fails, but, if all proxies
-                    # end up failing, raise the error for the first one since
-                    # that's the most preferred proxy
-                    if error is None:
-                        error = e
-            raise error
+        if proxy:
+            return socks.create_connection(addr, source_address=source, **proxy)
         else:
             return socket.create_connection(addr, source_address=source)
 
